@@ -13,6 +13,11 @@ import (
 func main() {
 	s := server.NewMCPServer("zendesk", "0.0.1")
 
+	// Initialize cookie from env or browser
+	if err := initCookie(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	}
+
 	s.AddTool(
 		mcp.NewTool("search_tickets",
 			mcp.WithDescription("Search Zendesk tickets using Zendesk search syntax. Supports queries like 'status:open', 'priority:high', 'assignee:me', free text, tags, etc."),

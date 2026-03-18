@@ -23,10 +23,13 @@ func getBaseURL() (string, error) {
 }
 
 func getCookie() (string, error) {
-	if zendeskCookie == "" {
-		return "", fmt.Errorf("ZENDESK_COOKIE environment variable is required")
+	cookieMu.Lock()
+	cookie := zendeskCookie
+	cookieMu.Unlock()
+	if cookie == "" {
+		return "", fmt.Errorf("ZENDESK_COOKIE not set and browser cookie extraction failed")
 	}
-	return zendeskCookie, nil
+	return cookie, nil
 }
 
 // zendeskFetch is the core HTTP helper. Every Zendesk API call goes through here.
@@ -75,6 +78,23 @@ func zendeskFetch(path string, params map[string]string) ([]byte, error) {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// On 401, try refreshing the cookie from the browser and retry once
+		if resp.StatusCode == 401 {
+			newCookie, refreshErr := refreshCookie()
+			if refreshErr == nil && newCookie != cookie {
+				req2, _ := http.NewRequest("GET", u.String(), nil)
+				req2.Header.Set("Cookie", newCookie)
+				req2.Header.Set("Content-Type", "application/json")
+				req2.Header.Set("Accept", "application/json")
+				resp2, err2 := http.DefaultClient.Do(req2)
+				if err2 == nil {
+					defer resp2.Body.Close()
+					if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+						return io.ReadAll(resp2.Body)
+					}
+				}
+			}
+		}
 		return nil, fmt.Errorf("Zendesk API error %d: %s\n%s", resp.StatusCode, resp.Status, string(body))
 	}
 

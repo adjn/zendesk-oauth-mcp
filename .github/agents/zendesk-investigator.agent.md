@@ -153,27 +153,6 @@ context - tool links, chat threads, and escalation details.
 
 ## Cookie Expiry
 
-If Zendesk API calls return 401 errors, the session cookie has expired. Guide
-the user through refreshing it:
-
-1. Ask them to log in to Zendesk in their browser
-2. Open Developer Tools → Network tab
-3. Find any request to `zendesk.com` and copy the full `Cookie` header
-4. Update the `ZENDESK_COOKIE` value in their environment/config and restart
-
-If the user has Firefox or Zen browser, you can extract the cookie
-automatically from the browser's SQLite cookie database:
-
-```bash
-cp ~/Library/Application\ Support/zen/Profiles/*/cookies.sqlite /tmp/zd_cookies.sqlite
-```
-
-```sql
-SELECT name || '=' || value
-FROM moz_cookies
-WHERE host LIKE '%<subdomain>.zendesk.com%'
-  AND name IN ('_zendesk_cookie', '_zendesk_shared_session')
-ORDER BY lastAccessed DESC;
-```
-
-Combine results with `;` separators and update the config.
+The MCP server automatically re-extracts cookies from the user's browser when
+it encounters a 401 error. If requests continue to fail with 401, ask the user
+to log into Zendesk in their browser to refresh their session, then retry.
