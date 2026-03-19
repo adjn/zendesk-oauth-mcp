@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,9 +11,9 @@ import (
 	"time"
 
 	"github.com/browserutils/kooky"
-	"github.com/browserutils/kooky/browser/chrome"
+	_ "github.com/browserutils/kooky/browser/chrome"
 	firefoxkooky "github.com/browserutils/kooky/browser/firefox"
-	"github.com/browserutils/kooky/browser/safari"
+	_ "github.com/browserutils/kooky/browser/safari"
 )
 
 type cookieCandidate struct {
@@ -33,45 +34,62 @@ func extractCookieFromBrowser(subdomain string) (string, error) {
 
 	best := map[string]cookieCandidate{}
 
-	filters := []kooky.Filter{
+	validFilters := []kooky.Filter{
 		kooky.Valid,
 		kooky.DomainHasSuffix(domain),
 	}
 
-	// Try Zen and Firefox first (no Keychain prompt)
-	for _, c := range extractZenCookiesFull(domain) {
+	var totalFound int
+
+	// Phase 1: Zen and Firefox (no Keychain prompt)
+	for _, c := range extractFirefoxLikeCookies(domain, zenProfileRoots()) {
+		totalFound++
+		if prev, ok := best[c.Name]; !ok || c.Expires.After(prev.expires) {
+			best[c.Name] = cookieCandidate{value: c.Name + "=" + c.Value, expires: c.Expires}
+		}
+	}
+	for _, c := range extractFirefoxLikeCookies(domain, firefoxProfileRoots()) {
+		totalFound++
 		if prev, ok := best[c.Name]; !ok || c.Expires.After(prev.expires) {
 			best[c.Name] = cookieCandidate{value: c.Name + "=" + c.Value, expires: c.Expires}
 		}
 	}
 
-	for c := range firefoxkooky.TraverseCookies("", filters...).OnlyCookies() {
-		if prev, ok := best[c.Name]; !ok || c.Expires.After(prev.expires) {
-			best[c.Name] = cookieCandidate{value: c.Name + "=" + c.Value, expires: c.Expires}
-		}
-	}
-
-	// If we found cookies, use them without touching Chrome/Safari
 	if len(best) > 0 {
 		return buildCookieString(best), nil
 	}
 
-	// Fall back to Safari, then Chrome (may trigger Keychain prompt)
-	for _, finder := range []func(string, ...kooky.Filter) kooky.CookieSeq{
-		safari.TraverseCookies,
-		chrome.TraverseCookies,
-	} {
-		for c := range finder("", filters...).OnlyCookies() {
-			if prev, ok := best[c.Name]; !ok || c.Expires.After(prev.expires) {
-				best[c.Name] = cookieCandidate{value: c.Name + "=" + c.Value, expires: c.Expires}
-			}
-		}
-		if len(best) > 0 {
-			return buildCookieString(best), nil
+	// Phase 2: Safari and Chrome via registered finders (Chrome may trigger Keychain prompt on macOS)
+	for c := range kooky.TraverseCookies(context.TODO(), validFilters...).OnlyCookies() {
+		totalFound++
+		if prev, ok := best[c.Name]; !ok || c.Expires.After(prev.expires) {
+			best[c.Name] = cookieCandidate{value: c.Name + "=" + c.Value, expires: c.Expires}
 		}
 	}
 
-	return "", fmt.Errorf("no Zendesk cookies found in any browser for %s", domain)
+	if len(best) > 0 {
+		return buildCookieString(best), nil
+	}
+
+	// No valid cookies - check for expired ones to give a better error
+	if totalFound == 0 {
+		var expiredCount int
+		domainOnly := []kooky.Filter{kooky.DomainHasSuffix(domain)}
+		for range kooky.TraverseCookies(context.TODO(), domainOnly...).OnlyCookies() {
+			expiredCount++
+		}
+		if expiredCount > 0 {
+			return "", fmt.Errorf(
+				"found %d Zendesk cookies for %s but all are expired - log into Zendesk in your browser to refresh your session",
+				expiredCount, domain,
+			)
+		}
+	}
+
+	return "", fmt.Errorf(
+		"no Zendesk cookies found in any browser for %s - ensure you are logged into Zendesk in your browser (Zen, Firefox, Safari, or Chrome)",
+		domain,
+	)
 }
 
 func buildCookieString(best map[string]cookieCandidate) string {
@@ -83,20 +101,37 @@ func buildCookieString(best map[string]cookieCandidate) string {
 	return strings.Join(parts, "; ")
 }
 
-func extractZenCookiesFull(domain string) []*kooky.Cookie {
-	var roots []string
+func zenProfileRoots() []string {
+	home, _ := os.UserHomeDir()
 	switch runtime.GOOS {
 	case "darwin":
-		home, _ := os.UserHomeDir()
-		roots = append(roots, filepath.Join(home, "Library", "Application Support", "zen"))
+		return []string{filepath.Join(home, "Library", "Application Support", "zen", "Profiles")}
 	case "linux":
-		home, _ := os.UserHomeDir()
-		roots = append(roots, filepath.Join(home, ".zen"))
+		return []string{filepath.Join(home, ".zen", "Profiles")}
 	}
+	return nil
+}
 
+func firefoxProfileRoots() []string {
+	home, _ := os.UserHomeDir()
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles")}
+	case "linux":
+		return []string{
+			filepath.Join(home, "snap", "firefox", "common", ".mozilla", "firefox"),
+			filepath.Join(home, ".mozilla", "firefox"),
+		}
+	}
+	return nil
+}
+
+// extractFirefoxLikeCookies reads cookies from Firefox-format SQLite databases
+// found under the given profile root directories.
+func extractFirefoxLikeCookies(domain string, roots []string) []*kooky.Cookie {
 	var found []*kooky.Cookie
 	for _, root := range roots {
-		profiles, err := filepath.Glob(filepath.Join(root, "Profiles", "*", "cookies.sqlite"))
+		profiles, err := filepath.Glob(filepath.Join(root, "*", "cookies.sqlite"))
 		if err != nil {
 			continue
 		}
@@ -104,13 +139,9 @@ func extractZenCookiesFull(domain string) []*kooky.Cookie {
 			for c := range firefoxkooky.TraverseCookies(dbPath, kooky.Valid, kooky.DomainHasSuffix(domain)).OnlyCookies() {
 				found = append(found, c)
 			}
-			if len(found) > 0 {
-				return found
-			}
 		}
 	}
-
-	return nil
+	return found
 }
 
 // refreshCookie re-extracts the cookie from the browser and updates the cache.
