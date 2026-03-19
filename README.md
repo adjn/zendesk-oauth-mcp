@@ -94,6 +94,34 @@ cp .github/skills/zendesk-mcp/SKILL.md ~/.copilot/skills/zendesk-mcp/
 >   --jq '.content' | base64 -d > ~/.copilot/skills/zendesk-mcp/SKILL.md
 > ```
 
+## Updates
+
+To update to the latest version, download the new binary and replace the existing one:
+
+```bash
+# macOS (Apple Silicon)
+gh release download --repo BagToad/zendesk-oauth-mcp -p '*darwin_arm64*' --clobber
+
+# macOS (Intel)
+gh release download --repo BagToad/zendesk-oauth-mcp -p '*darwin_amd64*' --clobber
+
+# Linux (x86_64)
+gh release download --repo BagToad/zendesk-oauth-mcp -p '*linux_amd64*' --clobber
+```
+
+```bash
+tar -xzf zendesk-oauth-mcp_*.tar.gz
+chmod +x zendesk-oauth-mcp
+mv -f zendesk-oauth-mcp ~/.local/bin/
+```
+
+> **Note (macOS):** If macOS blocks the updated binary, remove the quarantine attribute:
+> ```bash
+> xattr -dr com.apple.quarantine ~/.local/bin/zendesk-oauth-mcp
+> ```
+
+Then restart your MCP client to pick up the new version.
+
 ## Authentication
 
 This server authenticates to Zendesk using your browser's session cookie. This means it has the same permissions as your logged-in Zendesk account with no admin setup required.
