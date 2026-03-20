@@ -27,6 +27,13 @@ chmod +x zendesk-oauth-mcp
 mv zendesk-oauth-mcp ~/.local/bin/
 ```
 
+> **Ensure `~/.local/bin` is on your PATH.** If it isn't, add it to your shell profile:
+> ```bash
+> # Add to ~/.bashrc, ~/.zshrc, or equivalent
+> export PATH="$HOME/.local/bin:$PATH"
+> ```
+> Then restart your shell or run `source ~/.bashrc` (or `~/.zshrc`).
+
 > **Note (macOS):** If macOS blocks the binary, remove the quarantine attribute:
 > ```bash
 > xattr -dr com.apple.quarantine ~/.local/bin/zendesk-oauth-mcp
@@ -190,6 +197,8 @@ This repo also includes a [Zendesk Ticket Investigator agent](.github/agents/zen
 
 | Error | Cause | Fix |
 |---|---|---|
+| `spawn zendesk-oauth-mcp ENOENT` | Binary not found on your `PATH` | Ensure `~/.local/bin` is on your `PATH` (see step 1) and that the binary is located there. |
+| `spawn zendesk-oauth-mcp EACCES` | Binary missing execute permission | Run `chmod +x ~/.local/bin/zendesk-oauth-mcp` |
 | `401 Unauthorized` | Cookie has expired | The server auto-retries by re-extracting from your browser. If this persists, log into Zendesk in your browser to refresh the session. |
 | `403 Forbidden` | Insufficient permissions | Ensure the authenticated user has agent access |
 | `404 Not Found` | Invalid ticket ID | Verify the ticket ID exists |
