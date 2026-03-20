@@ -40,7 +40,23 @@ cd zendesk-oauth-mcp
 go build -o zendesk-oauth-mcp .
 ```
 
-### 2. Add to your MCP client
+### 2. Ensure `~/.local/bin` is on your PATH
+
+If `~/.local/bin` isn't already on your `PATH`, add it to your shell profile:
+
+`bash`/`zsh`:
+```bash
+PATH="$HOME/.local/bin:$PATH"
+```
+Then restart your shell or run `source ~/.bashrc` / `source ~/.zshrc`.
+
+`fish`:
+
+```fish
+fish_add_path ~/.local/bin
+```
+
+### 3. Add to your MCP client
 
 Add the server to your MCP client config. The only required setting is `ZENDESK_SUBDOMAIN`:
 
@@ -64,7 +80,7 @@ The server will automatically extract your Zendesk session cookie from your brow
 
 > If the binary isn't on your `PATH`, use the full path to the binary instead (e.g. `/Users/you/.local/bin/zendesk-oauth-mcp`).
 
-### 3. Install the Zendesk skill
+### 4. Install the Zendesk skill
 
 Copy the included [skill file](.github/skills/zendesk-mcp/SKILL.md) to your personal skills directory so Copilot knows how to use the Zendesk tools across all your projects:
 
@@ -80,7 +96,7 @@ cp .github/skills/zendesk-mcp/SKILL.md ~/.copilot/skills/zendesk-mcp/
 >   --jq '.content' | base64 -d > ~/.copilot/skills/zendesk-mcp/SKILL.md
 > ```
 
-### 4. Install the Zendesk Investigator agent
+### 5. Install the Zendesk Investigator agent
 
 Copy the included [agent file](.github/agents/zendesk-investigator.agent.md) to your personal agents directory so Copilot can perform end-to-end ticket investigations:
 
@@ -96,11 +112,11 @@ cp .github/agents/zendesk-investigator.agent.md ~/.copilot/agents/
 >   --jq '.content' | base64 -d > ~/.copilot/agents/zendesk-investigator.agent.md
 > ```
 
-### 5. Restart your MCP client
+### 6. Restart your MCP client
 
 Restart your MCP client (e.g. relaunch Copilot CLI) to pick up the new server, skill, and agent. You should now have access to `search_tickets`, `get_ticket`, `get_ticket_comments`, and `list_tickets` tools.
 
-### 6. Test the connection
+### 7. Test the connection
 
 Verify your setup is working by asking Copilot to query your Zendesk instance:
 
@@ -190,6 +206,8 @@ This repo also includes a [Zendesk Ticket Investigator agent](.github/agents/zen
 
 | Error | Cause | Fix |
 |---|---|---|
+| `spawn zendesk-oauth-mcp ENOENT` | Binary not found on your `PATH` | Ensure `~/.local/bin` is on your `PATH` (see step 2) and that the binary is located there. |
+| `spawn zendesk-oauth-mcp EACCES` | Binary missing execute permission | Run `chmod +x ~/.local/bin/zendesk-oauth-mcp` |
 | `401 Unauthorized` | Cookie has expired | The server auto-retries by re-extracting from your browser. If this persists, log into Zendesk in your browser to refresh the session. |
 | `403 Forbidden` | Insufficient permissions | Ensure the authenticated user has agent access |
 | `404 Not Found` | Invalid ticket ID | Verify the ticket ID exists |
