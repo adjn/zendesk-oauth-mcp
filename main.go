@@ -13,8 +13,8 @@ import (
 func main() {
 	s := server.NewMCPServer("zendesk", "0.0.1")
 
-	// Initialize cookie from env or browser
-	if err := initCookie(); err != nil {
+	// Initialize authentication (cookie or OAuth) before any Zendesk requests.
+	if err := initAuth(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 	}
 

@@ -39,11 +39,6 @@ func zendeskFetch(path string, params map[string]string) ([]byte, error) {
 		return nil, err
 	}
 
-	cookie, err := getCookie()
-	if err != nil {
-		return nil, err
-	}
-
 	u, err := url.Parse(baseURL + path)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
@@ -62,7 +57,9 @@ func zendeskFetch(path string, params map[string]string) ([]byte, error) {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
-	req.Header.Set("Cookie", cookie)
+	if err := applyAuth(req); err != nil {
+		return nil, err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
@@ -78,19 +75,19 @@ func zendeskFetch(path string, params map[string]string) ([]byte, error) {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// On 401, try refreshing the cookie from the browser and retry once
+		// On 401, try refreshing credentials and retry once.
 		if resp.StatusCode == 401 {
-			newCookie, refreshErr := refreshCookie()
-			if refreshErr == nil && newCookie != cookie {
+			if refreshErr := refreshAuth(); refreshErr == nil {
 				req2, _ := http.NewRequest("GET", u.String(), nil)
-				req2.Header.Set("Cookie", newCookie)
-				req2.Header.Set("Content-Type", "application/json")
-				req2.Header.Set("Accept", "application/json")
-				resp2, err2 := http.DefaultClient.Do(req2)
-				if err2 == nil {
-					defer resp2.Body.Close()
-					if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
-						return io.ReadAll(resp2.Body)
+				if authErr := applyAuth(req2); authErr == nil {
+					req2.Header.Set("Content-Type", "application/json")
+					req2.Header.Set("Accept", "application/json")
+					resp2, err2 := http.DefaultClient.Do(req2)
+					if err2 == nil {
+						defer resp2.Body.Close()
+						if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+							return io.ReadAll(resp2.Body)
+						}
 					}
 				}
 			}
