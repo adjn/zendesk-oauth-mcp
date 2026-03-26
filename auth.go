@@ -11,7 +11,7 @@ import (
 type authMode int
 
 const (
-	authModeCookie authMode = iota // Browser session cookie (default)
+	authModeCookie authMode = iota // Browser session cookie
 	authModeOAuth                  // OAuth 2.1 access token
 )
 
