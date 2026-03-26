@@ -24,8 +24,9 @@ var (
 	oauthClientSecret = os.Getenv("ZENDESK_OAUTH_CLIENT_SECRET")
 	oauthScopes       = os.Getenv("ZENDESK_OAUTH_SCOPES") // optional, defaults to "read"
 
-	oauthMu    sync.Mutex
-	oauthToken *oauthTokenData
+	oauthMu         sync.Mutex
+	oauthToken      *oauthTokenData
+	oauthHTTPClient = http.DefaultClient // overridable for testing
 )
 
 // oauthTokenData holds the cached OAuth token and metadata.
@@ -128,10 +129,7 @@ func runOAuthFlow() error {
 		return fmt.Errorf("generating state: %w", err)
 	}
 
-	scopes := oauthScopes
-	if scopes == "" {
-		scopes = "read"
-	}
+	scopes := oauthScopeList()
 
 	// Build the authorization URL.
 	authURL := fmt.Sprintf("https://%s.zendesk.com/oauth/authorizations/new?%s",
@@ -182,6 +180,8 @@ func runOAuthFlow() error {
 
 	// Open the browser.
 	fmt.Fprintf(os.Stderr, "zendesk-oauth-mcp: opening browser for Zendesk OAuth authorization...\n")
+	// TODO: Review whether logging the full auth URL is a security concern —
+	// it contains the state (CSRF token) and code_challenge parameters.
 	fmt.Fprintf(os.Stderr, "  If the browser doesn't open, visit:\n  %s\n", authURL)
 	openBrowser(authURL)
 
@@ -229,7 +229,12 @@ func doTokenRefresh(refreshToken string) error {
 
 // doTokenRequest performs the POST to the token endpoint and caches the result.
 func doTokenRequest(tokenURL string, data url.Values) error {
-	resp, err := http.PostForm(tokenURL, data)
+	parsed, err := url.Parse(tokenURL)
+	if err != nil || parsed.Scheme != "https" {
+		return fmt.Errorf("token endpoint must be HTTPS: %s", tokenURL)
+	}
+
+	resp, err := oauthHTTPClient.PostForm(tokenURL, data)
 	if err != nil {
 		return fmt.Errorf("token request failed: %w", err)
 	}
@@ -336,17 +341,19 @@ func randomString(n int) (string, error) {
 }
 
 // openBrowser opens a URL in the user's default browser.
-func openBrowser(url string) {
+func openBrowser(rawURL string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.Command("open", rawURL)
 	case "linux":
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.Command("xdg-open", rawURL)
 	default:
 		return
 	}
-	cmd.Start()
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "zendesk-oauth-mcp: could not open browser: %v\n", err)
+	}
 }
 
 // --- Scopes Helper ---

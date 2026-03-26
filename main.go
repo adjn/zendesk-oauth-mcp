@@ -15,7 +15,8 @@ func main() {
 
 	// Initialize authentication (cookie or OAuth) before any Zendesk requests.
 	if err := initAuth(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Fatal: %v\n", err)
+		os.Exit(1)
 	}
 
 	s.AddTool(

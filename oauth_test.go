@@ -208,18 +208,20 @@ func TestDoTokenRequestSuccess(t *testing.T) {
 	origToken := oauthToken
 	origXDG := os.Getenv("XDG_CONFIG_HOME")
 	origSubdomain := zendeskSubdomain
+	origClient := oauthHTTPClient
 	defer func() {
 		oauthMu.Lock()
 		oauthToken = origToken
 		oauthMu.Unlock()
 		os.Setenv("XDG_CONFIG_HOME", origXDG)
 		zendeskSubdomain = origSubdomain
+		oauthHTTPClient = origClient
 	}()
 	os.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	zendeskSubdomain = "test"
 
-	// Mock token endpoint.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Mock token endpoint over TLS.
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "new-access-token",
 			"refresh_token": "new-refresh-token",
@@ -229,6 +231,7 @@ func TestDoTokenRequestSuccess(t *testing.T) {
 		})
 	}))
 	defer srv.Close()
+	oauthHTTPClient = srv.Client()
 
 	err := doTokenRequest(srv.URL, map[string][]string{
 		"grant_type": {"authorization_code"},
@@ -300,21 +303,24 @@ func TestDoTokenRequestTable(t *testing.T) {
 			origToken := oauthToken
 			origXDG := os.Getenv("XDG_CONFIG_HOME")
 			origSubdomain := zendeskSubdomain
+			origClient := oauthHTTPClient
 			defer func() {
 				oauthMu.Lock()
 				oauthToken = origToken
 				oauthMu.Unlock()
 				os.Setenv("XDG_CONFIG_HOME", origXDG)
 				zendeskSubdomain = origSubdomain
+				oauthHTTPClient = origClient
 			}()
 			os.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			zendeskSubdomain = "test"
 
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.status)
 				json.NewEncoder(w).Encode(tt.response)
 			}))
 			defer srv.Close()
+			oauthHTTPClient = srv.Client()
 
 			err := doTokenRequest(srv.URL, map[string][]string{"grant_type": {"test"}})
 

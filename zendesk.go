@@ -19,6 +19,12 @@ func getBaseURL() (string, error) {
 	if zendeskSubdomain == "" {
 		return "", fmt.Errorf("ZENDESK_SUBDOMAIN environment variable is required")
 	}
+	// Guard against URL injection via subdomain.
+	for _, c := range zendeskSubdomain {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
+			return "", fmt.Errorf("ZENDESK_SUBDOMAIN contains invalid character %q", string(c))
+		}
+	}
 	return fmt.Sprintf("https://%s.zendesk.com/api/v2", zendeskSubdomain), nil
 }
 
