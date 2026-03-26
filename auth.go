@@ -28,11 +28,11 @@ func initAuth() error {
 	case "oauth":
 		currentAuthMode = authModeOAuth
 		return initOAuth()
-	case "cookie", "":
+	case "cookie":
 		currentAuthMode = authModeCookie
 		return initCookie()
 	default:
-		return fmt.Errorf("invalid ZENDESK_AUTH_MODE %q: must be \"cookie\" or \"oauth\"", mode)
+		return fmt.Errorf("ZENDESK_AUTH_MODE must be set to \"cookie\" or \"oauth\"")
 	}
 }
 
