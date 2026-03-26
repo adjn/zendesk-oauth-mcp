@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	zendeskSubdomain = os.Getenv("ZENDESK_SUBDOMAIN")
-	zendeskCookie    = os.Getenv("ZENDESK_COOKIE")
+	zendeskSubdomain  = os.Getenv("ZENDESK_SUBDOMAIN")
+	zendeskCookie     = os.Getenv("ZENDESK_COOKIE")
+	zendeskBrowserUA  = os.Getenv("ZENDESK_BROWSER_USER_AGENT")
 )
 
 func getBaseURL() (string, error) {
@@ -30,6 +31,16 @@ func getCookie() (string, error) {
 		return "", fmt.Errorf("ZENDESK_COOKIE not set and browser cookie extraction failed")
 	}
 	return cookie, nil
+}
+
+func getUserAgent() string {
+	cookieMu.Lock()
+	ua := zendeskBrowserUA
+	cookieMu.Unlock()
+	if ua == "" {
+		return defaultUserAgent()
+	}
+	return ua
 }
 
 // zendeskFetch is the core HTTP helper. Every Zendesk API call goes through here.
@@ -63,6 +74,7 @@ func zendeskFetch(path string, params map[string]string) ([]byte, error) {
 	}
 
 	req.Header.Set("Cookie", cookie)
+	req.Header.Set("User-Agent", getUserAgent())
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
@@ -84,6 +96,7 @@ func zendeskFetch(path string, params map[string]string) ([]byte, error) {
 			if refreshErr == nil && newCookie != cookie {
 				req2, _ := http.NewRequest("GET", u.String(), nil)
 				req2.Header.Set("Cookie", newCookie)
+				req2.Header.Set("User-Agent", getUserAgent())
 				req2.Header.Set("Content-Type", "application/json")
 				req2.Header.Set("Accept", "application/json")
 				resp2, err2 := http.DefaultClient.Do(req2)

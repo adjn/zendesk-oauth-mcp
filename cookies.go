@@ -23,14 +23,16 @@ type cookieCandidate struct {
 }
 
 var (
-	cookieMu     sync.Mutex
-	cachedCookie string
+	cookieMu        sync.Mutex
+	cachedCookie    string
+	cachedUserAgent string
 )
 
 // extractCookieFromBrowser searches installed browsers for Zendesk session cookies.
 // Supports Chrome, Edge, Firefox, Safari, and Zen (Firefox-based).
 // When multiple browsers have the same cookie, the one with the latest expiry wins.
-func extractCookieFromBrowser(subdomain string) (string, error) {
+// Returns the cookie string and the browser family that provided it.
+func extractCookieFromBrowser(subdomain string) (string, browserKind, error) {
 	domain := subdomain + ".zendesk.com"
 
 	best := map[string]cookieCandidate{}
@@ -57,7 +59,7 @@ func extractCookieFromBrowser(subdomain string) (string, error) {
 	}
 
 	if len(best) > 0 {
-		return buildCookieString(best), nil
+		return buildCookieString(best), browserFirefox, nil
 	}
 
 	// Phase 2: Safari and Chrome via registered finders (Chrome may trigger Keychain prompt on macOS)
@@ -69,7 +71,7 @@ func extractCookieFromBrowser(subdomain string) (string, error) {
 	}
 
 	if len(best) > 0 {
-		return buildCookieString(best), nil
+		return buildCookieString(best), browserChrome, nil
 	}
 
 	// No valid cookies - check for expired ones to give a better error
@@ -80,14 +82,14 @@ func extractCookieFromBrowser(subdomain string) (string, error) {
 			expiredCount++
 		}
 		if expiredCount > 0 {
-			return "", fmt.Errorf(
+			return "", browserUnknown, fmt.Errorf(
 				"found %d Zendesk cookies for %s but all are expired - log into Zendesk in your browser to refresh your session",
 				expiredCount, domain,
 			)
 		}
 	}
 
-	return "", fmt.Errorf(
+	return "", browserUnknown, fmt.Errorf(
 		"no Zendesk cookies found in any browser for %s - ensure you are logged into Zendesk in your browser (Zen, Firefox, Safari, Chrome, or Edge)",
 		domain,
 	)
@@ -146,12 +148,13 @@ func extractFirefoxLikeCookies(domain string, roots []string) []*kooky.Cookie {
 }
 
 // refreshCookie re-extracts the cookie from the browser and updates the cache.
+// Also detects the matching User-Agent when ZENDESK_BROWSER_USER_AGENT is not set.
 func refreshCookie() (string, error) {
 	if zendeskSubdomain == "" {
 		return "", fmt.Errorf("ZENDESK_SUBDOMAIN is required to extract cookies")
 	}
 
-	cookie, err := extractCookieFromBrowser(zendeskSubdomain)
+	cookie, browser, err := extractCookieFromBrowser(zendeskSubdomain)
 	if err != nil {
 		return "", err
 	}
@@ -159,14 +162,23 @@ func refreshCookie() (string, error) {
 	cookieMu.Lock()
 	cachedCookie = cookie
 	zendeskCookie = cookie
+	if zendeskBrowserUA == "" {
+		ua := detectUserAgent(browser)
+		cachedUserAgent = ua
+		zendeskBrowserUA = ua
+		fmt.Fprintf(os.Stderr, "zendesk-oauth-mcp: detected %s user-agent\n", browser)
+	}
 	cookieMu.Unlock()
 
 	return cookie, nil
 }
 
-// initCookie sets up the cookie, either from env or browser extraction.
+// initCookie sets up the cookie and user agent, either from env or browser extraction.
 func initCookie() error {
 	if zendeskCookie != "" {
+		if zendeskBrowserUA == "" {
+			zendeskBrowserUA = defaultUserAgent()
+		}
 		return nil
 	}
 
