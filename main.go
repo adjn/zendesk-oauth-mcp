@@ -23,7 +23,7 @@ func main() {
 			mcp.WithDescription("Search Zendesk tickets using Zendesk search syntax. Supports queries like 'status:open', 'priority:high', 'assignee:me', free text, tags, etc."),
 			mcp.WithString("query", mcp.Required(), mcp.Description("Zendesk search query (e.g. 'status:open billing issue')")),
 			mcp.WithString("created_after", mcp.Description("Filter to tickets created after this time. Preferred format: ISO 8601 in UTC (e.g. '2026-04-01T08:00:00Z'). Also accepts date-only (e.g. '2026-04-01'). All times are UTC — convert from local timezone before passing. If the user's timezone is ambiguous, ask for clarification.")),
-			mcp.WithString("updated_after", mcp.Description("Filter to tickets updated after this time. Preferred format: ISO 8601 in UTC (e.g. '2026-04-01T08:00:00Z'). Also accepts date-only (e.g. '2026-04-01'). All times are UTC — convert from local timezone before passing.")),
+			mcp.WithString("updated_after", mcp.Description("Filter to tickets updated after this time. Preferred format: ISO 8601 in UTC (e.g. '2026-04-01T08:00:00Z'). Also accepts date-only (e.g. '2026-04-01'). All times are UTC — convert from local timezone before passing. If the user's timezone is ambiguous, ask for clarification.")),
 			mcp.WithNumber("page", mcp.Description("Page number for pagination")),
 			mcp.WithNumber("per_page", mcp.Description("Results per page (max 100)")),
 		),
