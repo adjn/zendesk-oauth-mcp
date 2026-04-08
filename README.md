@@ -1,6 +1,6 @@
 # Zendesk OAuth MCP Server
 
-An MCP server that gives AI agents **read-only** access to Zendesk tickets using your browser session cookie - for use in cases when API tokens are not available. Allow your agents to search tickets, read ticket details, and view conversation history. This server cannot create, update, or delete any Zendesk data.
+An MCP server that gives AI agents **read-only** access to Zendesk tickets. Supports two authentication modes: **OAuth 2.1** (recommended) and **browser session cookies**. Search tickets, read ticket details, and view conversation history. This server cannot create, update, or delete any Zendesk data.
 
 ## Setup
 
@@ -58,9 +58,11 @@ fish_add_path ~/.local/bin
 
 ### 3. Add to your MCP client
 
-Add the server to your MCP client config. The only required setting is `ZENDESK_SUBDOMAIN`:
+Add the server to your MCP client config. You must set `ZENDESK_SUBDOMAIN` and `ZENDESK_AUTH_MODE`.
 
 **GitHub Copilot CLI** - add to `~/.copilot/mcp-config.json`:
+
+#### OAuth mode (recommended)
 
 ```json
 {
@@ -69,14 +71,36 @@ Add the server to your MCP client config. The only required setting is `ZENDESK_
       "command": "zendesk-oauth-mcp",
       "args": [],
       "env": {
-        "ZENDESK_SUBDOMAIN": "your-subdomain"
+        "ZENDESK_SUBDOMAIN": "your-subdomain",
+        "ZENDESK_AUTH_MODE": "oauth",
+        "ZENDESK_OAUTH_CLIENT_ID": "your-client-id",
+        "ZENDESK_OAUTH_CLIENT_SECRET": "your-client-secret"
       }
     }
   }
 }
 ```
 
-The server will automatically extract your Zendesk session cookie from your browser (see [Authentication](#authentication)). You can also provide the cookie manually by adding `"ZENDESK_COOKIE": "your-cookie-string"` to the `env` block.
+On first run, the server opens your browser to authorize with Zendesk. The OAuth token is cached to disk and refreshed automatically. See [OAuth Authentication](#oauth-authentication-recommended) for setup details.
+
+#### Cookie mode
+
+```json
+{
+  "mcpServers": {
+    "zendesk": {
+      "command": "zendesk-oauth-mcp",
+      "args": [],
+      "env": {
+        "ZENDESK_SUBDOMAIN": "your-subdomain",
+        "ZENDESK_AUTH_MODE": "cookie"
+      }
+    }
+  }
+}
+```
+
+The server automatically extracts your Zendesk session cookie from your browser. You can also provide the cookie manually by adding `"ZENDESK_COOKIE": "your-cookie-string"` to the `env` block. See [Cookie Authentication](#cookie-authentication) for details.
 
 > If the binary isn't on your `PATH`, use the full path to the binary instead (e.g. `/Users/you/.local/bin/zendesk-oauth-mcp`).
 
@@ -124,7 +148,7 @@ Verify your setup is working by asking Copilot to query your Zendesk instance:
 show me all open tickets assigned to $USER
 ```
 
-If everything is configured correctly you should see a list of your open tickets. If you get an authentication error, double-check your cookie and subdomain values.
+If everything is configured correctly you should see a list of your open tickets. If you get an authentication error, double-check your credentials and subdomain values.
 
 ## Updates
 
@@ -156,9 +180,34 @@ Then restart your MCP client to pick up the new version.
 
 ## Authentication
 
-This server authenticates to Zendesk using your browser's session cookie. This means it has the same permissions as your logged-in Zendesk account with no admin setup required.
+The server requires `ZENDESK_AUTH_MODE` to be explicitly set to either `"oauth"` or `"cookie"`. Omitting it is an error — there is no default, ensuring you always know which authentication method is in use.
 
-### Automatic Cookie Extraction (Recommended)
+### OAuth Authentication (Recommended)
+
+OAuth 2.1 with PKCE is the recommended authentication method. It uses a proper access token instead of browser session cookies, and supports automatic token refresh.
+
+#### Prerequisites
+
+1. A Zendesk admin must register an OAuth client in **Admin Center → Apps and integrations → APIs → Zendesk API → OAuth Clients**
+2. Set the redirect URI to `http://127.0.0.1` (the server uses a random port on localhost)
+3. Note the **Client ID** and **Client Secret**
+
+#### How it works
+
+1. On first run, the server opens your browser to Zendesk's authorization page
+2. You approve access and Zendesk redirects back to the local server
+3. The server exchanges the authorization code for an access token using PKCE (S256)
+4. The token is cached to `~/.config/zendesk-oauth-mcp/<subdomain>-token.json` (permissions: `0600`)
+5. On subsequent runs, the cached token is reused. If expired, it's refreshed automatically
+6. On 401 responses, the server attempts a token refresh before retrying
+
+> **⚠️ Security Note:** The token cache file contains your OAuth access and refresh tokens. It is created with `0600` permissions (owner-only read/write). Do not share or commit this file.
+
+### Cookie Authentication
+
+When `ZENDESK_AUTH_MODE=cookie`, the server authenticates using your browser's session cookie. This means it has the same permissions as your logged-in Zendesk account with no admin setup required.
+
+#### Automatic Cookie Extraction
 
 When `ZENDESK_COOKIE` is not set, the server automatically extracts cookies from your browser's cookie database on startup using [kooky](https://github.com/browserutils/kooky). Supported browsers:
 
@@ -176,14 +225,7 @@ If the cookie expires mid-session (401 error), the server will automatically re-
 
 > **Chrome on macOS:** Chrome encrypts cookies using the macOS Keychain. The first time the server reads Chrome cookies, macOS will show a password prompt to allow Keychain access. You can grant "Always Allow" in Keychain Access, but this resets whenever the binary is rebuilt. To avoid the prompt entirely, ensure you're logged into Zendesk in a non-Chromium browser (Zen, Firefox, or Safari).
 
-### Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `ZENDESK_SUBDOMAIN` | Yes | Your Zendesk subdomain (e.g. `mycompany` for `mycompany.zendesk.com`) |
-| `ZENDESK_COOKIE` | No | Full `Cookie` header value. If omitted, the server extracts cookies from your browser automatically. |
-
-### Manual Cookie Setup
+#### Manual Cookie Setup
 
 If automatic extraction doesn't work for your setup, you can provide the cookie manually:
 
@@ -194,6 +236,17 @@ If automatic extraction doesn't work for your setup, you can provide the cookie 
 5. Copy the entire cookie string and set it as `ZENDESK_COOKIE` in your MCP config
 
 > **⚠️ Security Note:** The session cookie grants full access to your Zendesk account. Treat it like a password - don't commit it to source control or share it in logs.
+
+### Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `ZENDESK_SUBDOMAIN` | Yes | Your Zendesk subdomain (e.g. `mycompany` for `mycompany.zendesk.com`) |
+| `ZENDESK_AUTH_MODE` | Yes | Authentication mode: `"oauth"` or `"cookie"` |
+| `ZENDESK_OAUTH_CLIENT_ID` | OAuth mode | OAuth client ID from Zendesk Admin |
+| `ZENDESK_OAUTH_CLIENT_SECRET` | OAuth mode | OAuth client secret from Zendesk Admin |
+| `ZENDESK_OAUTH_SCOPES` | No | OAuth scopes (default: `"read"`) |
+| `ZENDESK_COOKIE` | No | Full `Cookie` header value. Cookie mode only. If omitted, cookies are extracted from your browser automatically. |
 
 ## Tools & Usage
 
@@ -231,9 +284,10 @@ search_tickets(query="status:open priority:high", created_after="2026-03-31T00:0
 
 | Error | Cause | Fix |
 |---|---|---|
+| `ZENDESK_AUTH_MODE must be set` | Missing auth mode | Set `ZENDESK_AUTH_MODE` to `"oauth"` or `"cookie"` in your MCP config |
 | `spawn zendesk-oauth-mcp ENOENT` | Binary not found on your `PATH` | Ensure `~/.local/bin` is on your `PATH` (see step 2) and that the binary is located there. |
 | `spawn zendesk-oauth-mcp EACCES` | Binary missing execute permission | Run `chmod +x ~/.local/bin/zendesk-oauth-mcp` |
-| `401 Unauthorized` | Cookie has expired | The server auto-retries by re-extracting from your browser. If this persists, log into Zendesk in your browser to refresh the session. |
+| `401 Unauthorized` | Token or cookie expired | The server auto-retries by refreshing credentials. If this persists, delete the token cache or re-login in your browser. |
 | `403 Forbidden` | Insufficient permissions | Ensure the authenticated user has agent access |
 | `404 Not Found` | Invalid ticket ID | Verify the ticket ID exists |
 | `429 Too Many Requests` | Rate limited | Wait and retry; reduce request frequency |
@@ -243,6 +297,7 @@ search_tickets(query="status:open priority:high", created_after="2026-03-31T00:0
 ```bash
 go build -o zendesk-oauth-mcp .   # Build the binary
 go run .                          # Run without building
+go test ./...                     # Run unit tests
 ```
 
 ## License
