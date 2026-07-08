@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -20,7 +19,7 @@ func main() {
 
 	s.AddTool(
 		mcp.NewTool("search_tickets",
-			mcp.WithDescription("Search Zendesk tickets using Zendesk search syntax. Supports queries like 'status:open', 'priority:high', 'assignee:me', free text, tags, etc."),
+			mcp.WithDescription("Search Zendesk tickets using Zendesk search syntax. Supports queries like 'status:open', 'priority:high', 'assignee:me', free text, tags, etc. "+UntrustedNote),
 			mcp.WithString("query", mcp.Required(), mcp.Description("Zendesk search query (e.g. 'status:open billing issue')")),
 			mcp.WithNumber("page", mcp.Description("Page number for pagination")),
 			mcp.WithNumber("per_page", mcp.Description("Results per page (max 100)")),
@@ -30,7 +29,7 @@ func main() {
 
 	s.AddTool(
 		mcp.NewTool("get_ticket",
-			mcp.WithDescription("Get full details of a specific Zendesk ticket by ID"),
+			mcp.WithDescription("Get full details of a specific Zendesk ticket by ID. "+UntrustedNote),
 			mcp.WithNumber("ticket_id", mcp.Required(), mcp.Description("The Zendesk ticket ID")),
 		),
 		handleGetTicket,
@@ -38,7 +37,7 @@ func main() {
 
 	s.AddTool(
 		mcp.NewTool("get_ticket_comments",
-			mcp.WithDescription("Get the conversation thread (comments) on a Zendesk ticket"),
+			mcp.WithDescription("Get the conversation thread (comments) on a Zendesk ticket. "+UntrustedNote),
 			mcp.WithNumber("ticket_id", mcp.Required(), mcp.Description("The Zendesk ticket ID")),
 			mcp.WithNumber("page", mcp.Description("Page number for pagination")),
 			mcp.WithNumber("per_page", mcp.Description("Results per page (max 100)")),
@@ -48,7 +47,7 @@ func main() {
 
 	s.AddTool(
 		mcp.NewTool("list_tickets",
-			mcp.WithDescription("List recent Zendesk tickets, optionally filtered by status"),
+			mcp.WithDescription("List recent Zendesk tickets, optionally filtered by status. "+UntrustedNote),
 			mcp.WithString("status", mcp.Enum("new", "open", "pending", "hold", "solved", "closed"), mcp.Description("Filter tickets by status")),
 			mcp.WithNumber("page", mcp.Description("Page number for pagination")),
 			mcp.WithNumber("per_page", mcp.Description("Results per page (max 100)")),
@@ -62,9 +61,17 @@ func main() {
 	}
 }
 
+// textResult wraps a tool payload in the untrusted-data envelope before
+// returning it to the model. Every data tool funnels through here, so the
+// envelope (and its Unicode/bidi sanitization) is applied uniformly and any
+// future tool inherits it by default. If the envelope fails to marshal we fall
+// back to an error result rather than leaking an unlabeled payload.
 func textResult(v any) *mcp.CallToolResult {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	return mcp.NewToolResultText(string(b))
+	out, err := marshalUntrusted(v)
+	if err != nil {
+		return errorResult("Error encoding result", err)
+	}
+	return mcp.NewToolResultText(out)
 }
 
 func errorResult(msg string, err error) *mcp.CallToolResult {
