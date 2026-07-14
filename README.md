@@ -2,21 +2,23 @@
 
 An MCP server that gives AI agents **read-only** access to Zendesk tickets using your browser session cookie - for use in cases when API tokens are not available. Allow your agents to search tickets, read ticket details, and view conversation history. This server cannot create, update, or delete any Zendesk data.
 
+> A fork of [BagToad/zendesk-oauth-mcp](https://github.com/BagToad/zendesk-oauth-mcp) with additional updates.
+
 ## Setup
 
 ### 1. Download the binary
 
-Download the latest release for your platform from the [releases page](https://github.com/BagToad/zendesk-oauth-mcp/releases).
+Download the latest release for your platform from the [releases page](https://github.com/adjn/zendesk-oauth-mcp/releases).
 
 ```bash
 # macOS (Apple Silicon)
-gh release download --repo BagToad/zendesk-oauth-mcp -p '*darwin_arm64*'
+gh release download --repo adjn/zendesk-oauth-mcp -p '*darwin_arm64*'
 
 # macOS (Intel)
-gh release download --repo BagToad/zendesk-oauth-mcp -p '*darwin_amd64*'
+gh release download --repo adjn/zendesk-oauth-mcp -p '*darwin_amd64*'
 
 # Linux (x86_64)
-gh release download --repo BagToad/zendesk-oauth-mcp -p '*linux_amd64*'
+gh release download --repo adjn/zendesk-oauth-mcp -p '*linux_amd64*'
 ```
 
 ```bash
@@ -35,7 +37,7 @@ mv zendesk-oauth-mcp ~/.local/bin/
 Or build from source:
 
 ```bash
-gh repo clone BagToad/zendesk-oauth-mcp
+gh repo clone adjn/zendesk-oauth-mcp
 cd zendesk-oauth-mcp
 go build -o zendesk-oauth-mcp .
 ```
@@ -92,7 +94,7 @@ cp .github/skills/zendesk-mcp/SKILL.md ~/.copilot/skills/zendesk-mcp/
 > If you don't have a local clone of this repo, you can download the file directly:
 > ```bash
 > mkdir -p ~/.copilot/skills/zendesk-mcp
-> gh api repos/BagToad/zendesk-oauth-mcp/contents/.github/skills/zendesk-mcp/SKILL.md \
+> gh api repos/adjn/zendesk-oauth-mcp/contents/.github/skills/zendesk-mcp/SKILL.md \
 >   --jq '.content' | base64 -d > ~/.copilot/skills/zendesk-mcp/SKILL.md
 > ```
 
@@ -108,7 +110,7 @@ cp .github/agents/zendesk-investigator.agent.md ~/.copilot/agents/
 > If you don't have a local clone of this repo, you can download the file directly:
 > ```bash
 > mkdir -p ~/.copilot/agents
-> gh api repos/BagToad/zendesk-oauth-mcp/contents/.github/agents/zendesk-investigator.agent.md \
+> gh api repos/adjn/zendesk-oauth-mcp/contents/.github/agents/zendesk-investigator.agent.md \
 >   --jq '.content' | base64 -d > ~/.copilot/agents/zendesk-investigator.agent.md
 > ```
 
@@ -132,13 +134,13 @@ To update to the latest version, download the new binary and replace the existin
 
 ```bash
 # macOS (Apple Silicon)
-gh release download --repo BagToad/zendesk-oauth-mcp -p '*darwin_arm64*' --clobber
+gh release download --repo adjn/zendesk-oauth-mcp -p '*darwin_arm64*' --clobber
 
 # macOS (Intel)
-gh release download --repo BagToad/zendesk-oauth-mcp -p '*darwin_amd64*' --clobber
+gh release download --repo adjn/zendesk-oauth-mcp -p '*darwin_amd64*' --clobber
 
 # Linux (x86_64)
-gh release download --repo BagToad/zendesk-oauth-mcp -p '*linux_amd64*' --clobber
+gh release download --repo adjn/zendesk-oauth-mcp -p '*linux_amd64*' --clobber
 ```
 
 ```bash
