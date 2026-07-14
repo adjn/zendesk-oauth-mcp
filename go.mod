@@ -1,4 +1,4 @@
-module github.com/BagToad/zendesk-oauth-mcp
+module github.com/adjn/zendesk-oauth-mcp
 
 go 1.25.5
 
